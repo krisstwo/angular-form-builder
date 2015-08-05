@@ -32,7 +32,9 @@ angular.module 'builder.controller', ['builder.provider']
         ###
         copyObjectToScope formObject, $scope
 
-        $scope.optionsText = formObject.options.join '\n'
+        $scope.optionsText = ''
+        for option in formObject.options
+            $scope.optionsText += option.label + '\n'
 
         $scope.$watch '[label, description, placeholder, required, options, validation]', ->
             formObject.label = $scope.label
@@ -44,8 +46,8 @@ angular.module 'builder.controller', ['builder.provider']
         , yes
 
         $scope.$watch 'optionsText', (text) ->
-            $scope.options = (x for x in text.split('\n') when x.length > 0)
-            $scope.inputText = $scope.options[0]
+            $scope.options = ({value: i + '', label: x} for x, i in text.split('\n') when x.length > 0)
+            $scope.inputText = $scope.options[0].label if $scope.options[0]
 
         component = $builder.components[formObject.component]
         $scope.validationOptions = component.validationOptions
@@ -143,6 +145,11 @@ angular.module 'builder.controller', ['builder.provider']
         Copy current scope.input[X] to $parent.input.
         @param value: The input value.
         ###
+
+        # stringify...
+        if typeof value != 'string'
+            value = 'JSON:' + JSON.stringify value;
+
         input =
             id: $scope.formObject.id
             label: $scope.formObject.label

@@ -28,9 +28,14 @@
         4. Watch scope.optionsText then convert to scope.options.
         5. setup validationOptions
          */
-        var component;
+        var component, option, _i, _len, _ref;
         copyObjectToScope(formObject, $scope);
-        $scope.optionsText = formObject.options.join('\n');
+        $scope.optionsText = '';
+        _ref = formObject.options;
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          option = _ref[_i];
+          $scope.optionsText += option.label + '\n';
+        }
         $scope.$watch('[label, description, placeholder, required, options, validation]', function() {
           formObject.label = $scope.label;
           formObject.description = $scope.description;
@@ -40,20 +45,25 @@
           return formObject.validation = $scope.validation;
         }, true);
         $scope.$watch('optionsText', function(text) {
-          var x;
+          var i, x;
           $scope.options = (function() {
-            var _i, _len, _ref, _results;
-            _ref = text.split('\n');
+            var _j, _len1, _ref1, _results;
+            _ref1 = text.split('\n');
             _results = [];
-            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-              x = _ref[_i];
+            for (i = _j = 0, _len1 = _ref1.length; _j < _len1; i = ++_j) {
+              x = _ref1[i];
               if (x.length > 0) {
-                _results.push(x);
+                _results.push({
+                  value: i + '',
+                  label: x
+                });
               }
             }
             return _results;
           })();
-          return $scope.inputText = $scope.options[0];
+          if ($scope.options[0]) {
+            return $scope.inputText = $scope.options[0].label;
+          }
         });
         component = $builder.components[formObject.component];
         return $scope.validationOptions = component.validationOptions;
@@ -155,13 +165,28 @@
         Copy current scope.input[X] to $parent.input.
         @param value: The input value.
          */
-        var input;
+        var i, input, inserted, valueObject, _i, _len, _ref;
+        if (typeof value !== 'string') {
+          value = 'JSON:' + JSON.stringify(value);
+        }
         input = {
           id: $scope.formObject.id,
           label: $scope.formObject.label,
           value: value != null ? value : ''
         };
-        return $scope.$parent.input.splice($scope.$index, 1, input);
+        inserted = false;
+        _ref = $scope.$parent.input;
+        for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+          valueObject = _ref[i];
+          if (valueObject.id === input.id) {
+            $scope.$parent.input[i] = input;
+            inserted = true;
+            break;
+          }
+        }
+        if (!inserted) {
+          return $scope.$parent.input.push(input);
+        }
       };
     }
   ]);
@@ -230,18 +255,13 @@
               return $(element).find('.empty').remove();
             },
             up: function(e, isHover, draggable) {
-              var formObject, newFieldset, newIndex, oldIndex;
+              var newFieldset, newIndex, oldIndex;
               beginMove = true;
               if (!$drag.isMouseMoved()) {
                 $(element).find('.empty').remove();
                 return;
               }
-              if (!isHover && draggable.mode === 'drag') {
-                formObject = draggable.object.formObject;
-                if (formObject.editable) {
-                  $builder.removeFormObject(attrs.fbBuilder, formObject.index);
-                }
-              } else if (isHover) {
+              if (isHover) {
                 if (draggable.mode === 'mirror') {
                   $builder.insertFormObject(scope.formName, $(element).find('.empty').index('.fb-form-object-editable'), {
                     component: draggable.object.componentName
@@ -341,7 +361,7 @@
               The delete event of the popover.
                */
               $event.preventDefault();
-              $builder.removeFormObject(scope.$parent.formName, scope.$parent.fieldsetName, scope.$parent.$index);
+              $builder.removeFormObject(scope.$parent.formName, scope.fieldsetName, scope.$parent.$index);
               $(element).popover('hide');
             },
             shown: function() {
@@ -488,7 +508,18 @@
           scope.formObject = $parse(attrs.fbFormObject)(scope);
           scope.$component = $builder.components[scope.formObject.component];
           scope.$on($builder.broadcastChannel.updateInput, function() {
-            return scope.updateInput(scope.inputText);
+            var option, _i, _len, _ref;
+            if (!scope.$component.arrayToText && scope.options && scope.options.length) {
+              _ref = scope.options;
+              for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+                option = _ref[_i];
+                if (option.value === scope.inputText) {
+                  return scope.updateInput(option);
+                }
+              }
+            } else {
+              return scope.updateInput(scope.inputText);
+            }
           });
           if (scope.$component.arrayToText) {
             scope.inputArray = [];
@@ -503,11 +534,22 @@
                   checked.push((_ref = scope.options[index]) != null ? _ref : scope.inputArray[index]);
                 }
               }
-              return scope.inputText = checked.join(', ');
+              return scope.inputText = checked;
             }, true);
           }
           scope.$watch('inputText', function() {
-            return scope.updateInput(scope.inputText);
+            var option, _i, _len, _ref;
+            if (!scope.$component.arrayToText && scope.options && scope.options.length) {
+              _ref = scope.options;
+              for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+                option = _ref[_i];
+                if (option.value === scope.inputText) {
+                  return scope.updateInput(option);
+                }
+              }
+            } else {
+              return scope.updateInput(scope.inputText);
+            }
           });
           scope.$watch(attrs.fbFormObject, function() {
             return scope.copyObjectToScope(scope.formObject);
@@ -525,17 +567,32 @@
             view = $compile($template)(scope);
             return $(element).html(view);
           });
-          if (!scope.$component.arrayToText && scope.formObject.options.length > 0) {
-            scope.inputText = scope.formObject.options[0];
+          if (!scope.$component.arrayToText && scope.formObject.options && scope.formObject.options.length > 0) {
+            if (scope.formObject.options[0]) {
+              scope.inputText = scope.formObject.options[0].value;
+            } else {
+              scope.inputText = null;
+            }
           }
           return scope.$watch("default['" + scope.formObject.id + "']", function(value) {
+            var values, _i, _len;
             if (!value) {
               return;
             }
             if (scope.$component.arrayToText) {
-              return scope.inputArray = value;
+              scope.inputArray = [];
+              values = JSON.parse(value.replace('JSON:', ''));
+              for (_i = 0, _len = values.length; _i < _len; _i++) {
+                value = values[_i];
+                scope.inputArray[value.value] = true;
+              }
+              return scope.inputArray;
             } else {
-              return scope.inputText = value;
+              if (value.indexOf('JSON:') !== -1) {
+                return scope.inputText = (JSON.parse(value.replace('JSON:', ''))).value;
+              } else {
+                return scope.inputText = value;
+              }
             }
           });
         }

@@ -356,7 +356,14 @@ angular.module 'builder.directive', [
         # scope
         # ----------------------------------------
         # listen (formObject updated
-        scope.$on $builder.broadcastChannel.updateInput, -> scope.updateInput scope.inputText
+        scope.$on $builder.broadcastChannel.updateInput, ->
+            # if object have options and are not multiple (radio etc)
+            if not scope.$component.arrayToText and scope.options and scope.options.length
+                for option in scope.options
+                    if option.value == scope.inputText
+                        return scope.updateInput option
+            else
+                return scope.updateInput scope.inputText
         if scope.$component.arrayToText
             scope.inputArray = []
             # watch (end-user updated input of the form
@@ -366,9 +373,16 @@ angular.module 'builder.directive', [
                 checked = []
                 for index of scope.inputArray when scope.inputArray[index]
                     checked.push scope.options[index] ? scope.inputArray[index]
-                scope.inputText = checked.join ', '
+                scope.inputText = checked
             , yes
-        scope.$watch 'inputText', -> scope.updateInput scope.inputText
+        scope.$watch 'inputText', ->
+            # if object have options and are not multiple (radio etc)
+            if not scope.$component.arrayToText and scope.options and scope.options.length
+                for option in scope.options
+                    if option.value == scope.inputText
+                        return scope.updateInput option
+            else
+                return scope.updateInput scope.inputText
         # watch (management updated form objects
         scope.$watch attrs.fbFormObject, ->
             scope.copyObjectToScope scope.formObject
@@ -386,14 +400,24 @@ angular.module 'builder.directive', [
             $(element).html view
 
         # select the first option
-        if not scope.$component.arrayToText and scope.formObject.options.length > 0
-            scope.inputText = scope.formObject.options[0]
+        if not scope.$component.arrayToText and scope.formObject.options and scope.formObject.options.length > 0
+            if scope.formObject.options[0]
+                scope.inputText = scope.formObject.options[0].value
+            else
+                scope.inputText = null
 
         # set default value
         scope.$watch "default['#{scope.formObject.id}']", (value) ->
             return if not value
             if scope.$component.arrayToText
-                scope.inputArray = value
+                scope.inputArray = []
+                values = JSON.parse value.replace 'JSON:', ''
+                for value in values
+                    scope.inputArray[value.value] = true
+                scope.inputArray;
             else
-                scope.inputText = value
+                if value.indexOf('JSON:') != -1
+                    scope.inputText = (JSON.parse value.replace 'JSON:', '').value;
+                else
+                    scope.inputText = value
 ]
