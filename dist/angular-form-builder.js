@@ -179,14 +179,11 @@
         scope: {
           fbBuilder: '='
         },
-        template: "<div class='form-horizontal'>\n    <div class='fb-form-object-editable' ng-repeat=\"object in formObjects\"\n        fb-form-object-editable=\"object\"></div>\n</div>",
+        template: "<div class='form-horizontal'>\n    <div class='fb-form-fieldset' data-fieldset-name=\"{{fieldset.name}}\" ng-repeat=\"fieldset in fieldsets\">\n        <legend data-ng-if=\"fieldset.name != 'default'\">{{fieldset.label}}</legend>\n        <div class='fb-form-object-editable' ng-repeat=\"object in fieldset.objects\"\n            fb-form-object-editable=\"object\"></div>\n    </div>\n</div>",
         link: function(scope, element, attrs) {
-          var beginMove, _base, _name;
+          var beginMove;
           scope.formName = attrs.fbBuilder;
-          if ((_base = $builder.forms)[_name = scope.formName] == null) {
-            _base[_name] = [];
-          }
-          scope.formObjects = $builder.forms[scope.formName];
+          scope.fieldsets = $builder.forms[scope.formName];
           beginMove = true;
           $(element).addClass('fb-builder');
           return $drag.droppable($(element), {
@@ -233,7 +230,7 @@
               return $(element).find('.empty').remove();
             },
             up: function(e, isHover, draggable) {
-              var formObject, newIndex, oldIndex;
+              var formObject, newFieldset, newIndex, oldIndex;
               beginMove = true;
               if (!$drag.isMouseMoved()) {
                 $(element).find('.empty').remove();
@@ -252,11 +249,12 @@
                 }
                 if (draggable.mode === 'drag') {
                   oldIndex = draggable.object.formObject.index;
-                  newIndex = $(element).find('.empty').index('.fb-form-object-editable');
-                  if (oldIndex < newIndex) {
+                  newIndex = $(element).find('.empty').parent().find('.fb-form-object-editable').index($(element).find('.empty'));
+                  newFieldset = $(element).find('.empty').parent().data('fieldsetName');
+                  if (newFieldset === draggable.object.formObject.fieldsetName && oldIndex < newIndex) {
                     newIndex--;
                   }
-                  $builder.updateFormObjectIndex(scope.formName, oldIndex, newIndex);
+                  $builder.updateFormObjectIndex(scope.formName, draggable.object.formObject.fieldsetName, newFieldset, oldIndex, newIndex);
                 }
               }
               return $(element).find('.empty').remove();
@@ -343,7 +341,7 @@
               The delete event of the popover.
                */
               $event.preventDefault();
-              $builder.removeFormObject(scope.$parent.formName, scope.$parent.$index);
+              $builder.removeFormObject(scope.$parent.formName, scope.$parent.fieldsetName, scope.$parent.$index);
               $(element).popover('hide');
             },
             shown: function() {
@@ -463,14 +461,16 @@
           input: '=ngModel',
           "default": '=fbDefault'
         },
-        template: "<div class='fb-form-object' ng-repeat=\"object in form\" fb-form-object=\"object\"></div>",
+        template: "<div class='fb-form-fieldset' ng-repeat=\"fieldset in form\" data-ng-if=\"fieldset.objects.length\">\n    <legend data-ng-if=\"fieldset.name != 'default'\">{{fieldset.label}}</legend>\n    <div class='fb-form-object' ng-repeat=\"object in fieldset.objects\" fb-form-object=\"object\"></div>\n</div>",
         controller: 'fbFormController',
         link: function(scope, element, attrs) {
-          var $builder, _base, _name;
+          var $builder, _ref;
           $builder = $injector.get('$builder');
-          if ((_base = $builder.forms)[_name = scope.formName] == null) {
-            _base[_name] = [];
-          }
+                    if ((_ref = $builder.forms[scope.formName]) != null) {
+            _ref;
+          } else {
+            $builder.addForm(scope.formName);
+          };
           return scope.form = $builder.forms[scope.formName];
         }
       };
@@ -989,9 +989,7 @@
     this.broadcastChannel = {
       updateInput: '$updateInput'
     };
-    this.forms = {
-      "default": []
-    };
+    this.forms = {};
     this.convertComponent = function(name, component) {
       var result, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9;
       result = {
@@ -1019,7 +1017,35 @@
       }
       return result;
     };
-    this.convertFormObject = function(name, formObject) {
+    this.createEmptyForm = (function(_this) {
+      return function() {
+        return [
+          {
+            name: 'default',
+            label: '',
+            objects: []
+          }
+        ];
+      };
+    })(this);
+    this.addForm = (function(_this) {
+      return function(name) {
+        return _this.forms[name] = _this.createEmptyForm();
+      };
+    })(this);
+    this.getFieldsetIndexInForm = function(fieldset, form) {
+      var index, _i, _ref;
+      if (!this.forms[form]) {
+        console.error("The form is inexesitant.");
+      }
+      for (index = _i = 0, _ref = this.forms[form].length; _i < _ref; index = _i += 1) {
+        if (this.forms[form][index]['name'] === fieldset) {
+          return index;
+        }
+      }
+      return -1;
+    };
+    this.convertFormObject = function(fieldsetName, formObject) {
       var component, result, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
       if (formObject == null) {
         formObject = {};
@@ -1031,6 +1057,7 @@
       result = {
         id: formObject.id,
         component: formObject.component,
+        fieldsetName: fieldsetName,
         editable: (_ref = formObject.editable) != null ? _ref : component.editable,
         index: (_ref1 = formObject.index) != null ? _ref1 : 0,
         label: (_ref2 = formObject.label) != null ? _ref2 : component.label,
@@ -1044,10 +1071,11 @@
     };
     this.reindexFormObject = (function(_this) {
       return function(name) {
-        var formObjects, index, _i, _ref;
-        formObjects = _this.forms[name];
-        for (index = _i = 0, _ref = formObjects.length; _i < _ref; index = _i += 1) {
-          formObjects[index].index = index;
+        var fieldsetIndex, index, _i, _j, _ref, _ref1;
+        for (fieldsetIndex = _i = 0, _ref = _this.forms[name].length; _i < _ref; fieldsetIndex = _i += 1) {
+          for (index = _j = 0, _ref1 = _this.forms[name][fieldsetIndex].objects.length; _j < _ref1; index = _j += 1) {
+            _this.forms[name][fieldsetIndex].objects[index].index = index;
+          }
         }
       };
     })(this);
@@ -1120,24 +1148,20 @@
       };
     })(this);
     this.addFormObject = (function(_this) {
-      return function(name, formObject) {
-        var _base;
-        if (formObject == null) {
-          formObject = {};
-        }
+      return function(name, fieldset, formObject) {
 
         /*
         Insert the form object into the form at last.
          */
-        if ((_base = _this.forms)[name] == null) {
-          _base[name] = [];
-        }
-        return _this.insertFormObject(name, _this.forms[name].length, formObject);
+        return _this.insertFormObject(name, fieldset, 'last', formObject);
       };
     })(this);
     this.insertFormObject = (function(_this) {
-      return function(name, index, formObject) {
-        var _base;
+      return function(name, fieldset, index, formObject) {
+        var fieldsetIndex, _base;
+        if (fieldset == null) {
+          fieldset = 'default';
+        }
         if (formObject == null) {
           formObject = {};
         }
@@ -1145,6 +1169,7 @@
         /*
         Insert the form object into the form at {index}.
         @param name: The form name.
+        @param fieldset: The fieldsetname name.
         @param index: The form object index.
         @param form: The form object.
             id: The form object id.
@@ -1160,51 +1185,94 @@
         @return: The form object.
          */
         if ((_base = _this.forms)[name] == null) {
-          _base[name] = [];
+          _base[name] = _this.createEmptyForm();
         }
-        if (index > _this.forms[name].length) {
-          index = _this.forms[name].length;
+        fieldsetIndex = _this.getFieldsetIndexInForm(fieldset, name);
+        if (fieldsetIndex === -1) {
+          console.error("Fieldset '" + fieldset + "' not found in form '" + name + "'.");
+          return;
+        }
+        if (index > _this.forms[name][fieldsetIndex].length) {
+          index = _this.forms[name][fieldsetIndex].length;
         } else if (index < 0) {
           index = 0;
         }
-        _this.forms[name].splice(index, 0, _this.convertFormObject(name, formObject));
+        _this.forms[name][fieldsetIndex].objects.splice(index, 0, _this.convertFormObject(_this.forms[name][fieldsetIndex].name, formObject));
         _this.reindexFormObject(name);
-        return _this.forms[name][index];
+        return _this.forms[name][fieldsetIndex].objects[index];
       };
     })(this);
     this.removeFormObject = (function(_this) {
-      return function(name, index) {
+      return function(name, fieldset, index) {
+        var fieldsetIndex, formObjects;
+        if (fieldset == null) {
+          fieldset = 'default';
+        }
 
         /*
         Remove the form object by the index.
         @param name: The form name.
+        @param fieldset: The fieldset name.
         @param index: The form object index.
          */
-        var formObjects;
-        formObjects = _this.forms[name];
+        fieldsetIndex = _this.getFieldsetIndexInForm(fieldset, name);
+        if (fieldsetIndex === -1) {
+          console.error("Fieldset '" + fieldset + "'' not found in form '" + name + "'.");
+          return;
+        }
+        formObjects = _this.forms[name][fieldsetIndex].objects;
         formObjects.splice(index, 1);
         return _this.reindexFormObject(name);
       };
     })(this);
     this.updateFormObjectIndex = (function(_this) {
-      return function(name, oldIndex, newIndex) {
+      return function(name, oldFieldset, newFieldset, oldIndex, newIndex) {
 
         /*
         Update the index of the form object.
         @param name: The form name.
+        @param oldFieldset: The oldFieldset name.
+        @param newFieldset: The newFieldset name.
         @param oldIndex: The old index.
         @param newIndex: The new index.
          */
-        var formObject, formObjects;
+        var formObject, formObjects, newFieldsetIndex, oldFieldsetIndex;
         if (oldIndex === newIndex) {
           return;
         }
-        formObjects = _this.forms[name];
+        oldFieldsetIndex = _this.getFieldsetIndexInForm(oldFieldset, name);
+        if (oldFieldsetIndex === -1) {
+          console.error("Fieldset '" + oldFieldset + "'' not found in form '" + name + "'.");
+          return;
+        }
+        newFieldsetIndex = _this.getFieldsetIndexInForm(newFieldset, name);
+        if (newFieldsetIndex === -1) {
+          console.error("Fieldset '" + newFieldset + "'' not found in form '" + name + "'.");
+          return;
+        }
+        formObjects = _this.forms[name][oldFieldsetIndex].objects;
         formObject = formObjects.splice(oldIndex, 1)[0];
+        formObject.fieldsetName = _this.forms[name][newFieldsetIndex].name;
+        formObjects = _this.forms[name][newFieldsetIndex].objects;
         formObjects.splice(newIndex, 0, formObject);
         return _this.reindexFormObject(name);
       };
     })(this);
+    this.addFieldsetToForm = (function(_this) {
+      return function(fieldset, form) {
+        var newFieldset, _base, _ref;
+        if ((_base = _this.forms)[form] == null) {
+          _base[form] = _this.createEmptyForm();
+        }
+        newFieldset = {
+          name: fieldset.name,
+          label: (_ref = fieldset.label) != null ? _ref : '',
+          objects: []
+        };
+        return _this.forms[form].push(newFieldset);
+      };
+    })(this);
+    this.addForm('default');
     this.$get = [
       '$injector', (function(_this) {
         return function($injector) {
@@ -1222,6 +1290,8 @@
             forms: _this.forms,
             broadcastChannel: _this.broadcastChannel,
             registerComponent: _this.registerComponent,
+            addForm: _this.addForm,
+            addFieldsetToForm: _this.addFieldsetToForm,
             addFormObject: _this.addFormObject,
             insertFormObject: _this.insertFormObject,
             removeFormObject: _this.removeFormObject,

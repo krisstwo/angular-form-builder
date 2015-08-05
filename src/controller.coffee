@@ -147,5 +147,14 @@ angular.module 'builder.controller', ['builder.provider']
             id: $scope.formObject.id
             label: $scope.formObject.label
             value: value ? ''
-        $scope.$parent.input.splice $scope.$index, 1, input
+
+        inserted = false
+        for valueObject, i in $scope.$parent.input
+            if valueObject.id == input.id
+                $scope.$parent.input[i] = input
+                inserted = true
+                break
+        # if no insertion then push to array
+        if not inserted
+            $scope.$parent.input.push input
 ]

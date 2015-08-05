@@ -30,8 +30,7 @@ angular.module 'builder.provider', []
     # forms
     #   builder mode: `fb-builder` you could drag and drop to build the form.
     #   form mode: `fb-form` this is the form for end-user to input value.
-    @forms =
-        default: []
+    @forms = {}
 
 
     # ----------------------------------------
@@ -60,12 +59,29 @@ angular.module 'builder.provider', []
             console.error "The popoverTemplate is empty."
         result
 
-    @convertFormObject = (name, formObject={}) ->
+    @createEmptyForm = () =>
+        return [{name: 'default', label: '', objects: []}]
+
+    @addForm = (name) =>
+        @forms[name] = @createEmptyForm()
+
+    @getFieldsetIndexInForm = (fieldset, form) ->
+        if not @forms[form]
+            console.error "The form is inexesitant."
+
+        for index in [0...@forms[form].length] by 1
+            if @forms[form][index]['name'] == fieldset
+                return index
+
+        return -1
+
+    @convertFormObject = (fieldsetName, formObject={}) ->
         component = @components[formObject.component]
         throw "The component #{formObject.component} was not registered." if not component?
         result =
             id: formObject.id
             component: formObject.component
+            fieldsetName: fieldsetName
             editable: formObject.editable ? component.editable
             index: formObject.index ? 0
             label: formObject.label ? component.label
@@ -77,9 +93,9 @@ angular.module 'builder.provider', []
         result
 
     @reindexFormObject = (name) =>
-        formObjects = @forms[name]
-        for index in [0...formObjects.length] by 1
-            formObjects[index].index = index
+        for fieldsetIndex in [0...@forms[name].length] by 1
+            for index in [0...@forms[name][fieldsetIndex].objects.length] by 1
+                @forms[name][fieldsetIndex].objects[index].index = index
         return
 
     @setupProviders = (injector) =>
@@ -137,17 +153,17 @@ angular.module 'builder.provider', []
             console.error "The component #{name} was registered."
         return
 
-    @addFormObject = (name, formObject={}) =>
+    @addFormObject = (name, fieldset, formObject) =>
         ###
         Insert the form object into the form at last.
         ###
-        @forms[name] ?= []
-        @insertFormObject name, @forms[name].length, formObject
+        @insertFormObject name, fieldset, 'last', formObject
 
-    @insertFormObject = (name, index, formObject={}) =>
+    @insertFormObject = (name, fieldset='default', index, formObject={}) =>
         ###
         Insert the form object into the form at {index}.
         @param name: The form name.
+        @param fieldset: The fieldsetname name.
         @param index: The form object index.
         @param form: The form object.
             id: The form object id.
@@ -162,35 +178,78 @@ angular.module 'builder.provider', []
             [index]: {int} The form object index. It will be updated by $builder.
         @return: The form object.
         ###
-        @forms[name] ?= []
-        if index > @forms[name].length then index = @forms[name].length
-        else if index < 0 then index = 0
-        @forms[name].splice index, 0, @convertFormObject(name, formObject)
-        @reindexFormObject name
-        @forms[name][index]
+        @forms[name] ?= @createEmptyForm()
+        fieldsetIndex = @getFieldsetIndexInForm(fieldset, name)
+        if fieldsetIndex == -1
+            console.error "Fieldset '#{fieldset}' not found in form '#{name}'."
+            return
 
-    @removeFormObject = (name, index) =>
+        if index > @forms[name][fieldsetIndex].length then index = @forms[name][fieldsetIndex].length
+        else if index < 0 then index = 0
+        @forms[name][fieldsetIndex].objects.splice index, 0, @convertFormObject(@forms[name][fieldsetIndex].name, formObject)
+        @reindexFormObject name
+        @forms[name][fieldsetIndex].objects[index]
+
+    @removeFormObject = (name, fieldset='default', index) =>
         ###
         Remove the form object by the index.
         @param name: The form name.
+        @param fieldset: The fieldset name.
         @param index: The form object index.
         ###
-        formObjects = @forms[name]
+
+        fieldsetIndex = @getFieldsetIndexInForm(fieldset, name)
+        if fieldsetIndex == -1
+            console.error "Fieldset '#{fieldset}'' not found in form '#{name}'."
+            return
+
+        formObjects = @forms[name][fieldsetIndex].objects
         formObjects.splice index, 1
         @reindexFormObject name
 
-    @updateFormObjectIndex = (name, oldIndex, newIndex) =>
+    @updateFormObjectIndex = (name, oldFieldset, newFieldset, oldIndex, newIndex) =>
         ###
         Update the index of the form object.
         @param name: The form name.
+        @param oldFieldset: The oldFieldset name.
+        @param newFieldset: The newFieldset name.
         @param oldIndex: The old index.
         @param newIndex: The new index.
         ###
         return if oldIndex is newIndex
-        formObjects = @forms[name]
+
+        oldFieldsetIndex = @getFieldsetIndexInForm(oldFieldset, name)
+        if oldFieldsetIndex == -1
+            console.error "Fieldset '#{oldFieldset}'' not found in form '#{name}'."
+            return
+
+        newFieldsetIndex = @getFieldsetIndexInForm(newFieldset, name)
+        if newFieldsetIndex == -1
+            console.error "Fieldset '#{newFieldset}'' not found in form '#{name}'."
+            return
+
+        formObjects = @forms[name][oldFieldsetIndex].objects
         formObject = formObjects.splice(oldIndex, 1)[0]
+
+        # Set the new fieldset refrence
+        formObject.fieldsetName = @forms[name][newFieldsetIndex].name
+
+        formObjects = @forms[name][newFieldsetIndex].objects
         formObjects.splice newIndex, 0, formObject
+
         @reindexFormObject name
+
+    @addFieldsetToForm = (fieldset, form) =>
+        @forms[form] ?= @createEmptyForm()
+
+        newFieldset =
+            name: fieldset.name
+            label: fieldset.label ? ''
+            objects: []
+
+        @forms[form].push newFieldset
+
+    @addForm('default')
 
     # ----------------------------------------
     # $get
@@ -206,6 +265,8 @@ angular.module 'builder.provider', []
         forms: @forms
         broadcastChannel: @broadcastChannel
         registerComponent: @registerComponent
+        addForm: @addForm
+        addFieldsetToForm: @addFieldsetToForm
         addFormObject: @addFormObject
         insertFormObject: @insertFormObject
         removeFormObject: @removeFormObject

@@ -24,8 +24,11 @@ angular.module 'builder.directive', [
     template:
         """
         <div class='form-horizontal'>
-            <div class='fb-form-object-editable' ng-repeat="object in formObjects"
-                fb-form-object-editable="object"></div>
+            <div class='fb-form-fieldset' data-fieldset-name="{{fieldset.name}}" ng-repeat="fieldset in fieldsets">
+                <legend data-ng-if="fieldset.name != 'default'">{{fieldset.label}}</legend>
+                <div class='fb-form-object-editable' ng-repeat="object in fieldset.objects"
+                    fb-form-object-editable="object"></div>
+            </div>
         </div>
         """
     link: (scope, element, attrs) ->
@@ -33,8 +36,8 @@ angular.module 'builder.directive', [
         # valuables
         # ----------------------------------------
         scope.formName = attrs.fbBuilder
-        $builder.forms[scope.formName] ?= []
-        scope.formObjects = $builder.forms[scope.formName]
+        scope.fieldsets = $builder.forms[scope.formName]
+
         beginMove = yes
 
         $(element).addClass 'fb-builder'
@@ -102,9 +105,10 @@ angular.module 'builder.directive', [
                     if draggable.mode is 'drag'
                         # update the index of form objects
                         oldIndex = draggable.object.formObject.index
-                        newIndex = $(element).find('.empty').index('.fb-form-object-editable')
-                        newIndex-- if oldIndex < newIndex
-                        $builder.updateFormObjectIndex scope.formName, oldIndex, newIndex
+                        newIndex = $(element).find('.empty').parent().find('.fb-form-object-editable').index($(element).find('.empty'))
+                        newFieldset = $(element).find('.empty').parent().data('fieldsetName')
+                        newIndex-- if newFieldset == draggable.object.formObject.fieldsetName and oldIndex < newIndex
+                        $builder.updateFormObjectIndex scope.formName, draggable.object.formObject.fieldsetName, newFieldset, oldIndex, newIndex
                 $(element).find('.empty').remove()
 ]
 
@@ -184,7 +188,7 @@ angular.module 'builder.directive', [
                 ###
                 $event.preventDefault()
 
-                $builder.removeFormObject scope.$parent.formName, scope.$parent.$index
+                $builder.removeFormObject scope.$parent.formName, scope.fieldsetName, scope.$parent.$index
                 $(element).popover 'hide'
                 return
             shown: ->
@@ -315,7 +319,10 @@ angular.module 'builder.directive', [
         default: '=fbDefault'
     template:
         """
-        <div class='fb-form-object' ng-repeat="object in form" fb-form-object="object"></div>
+        <div class='fb-form-fieldset' ng-repeat="fieldset in form" data-ng-if="fieldset.objects.length">
+            <legend data-ng-if="fieldset.name != 'default'">{{fieldset.label}}</legend>
+            <div class='fb-form-object' ng-repeat="object in fieldset.objects" fb-form-object="object"></div>
+        </div>
         """
     controller: 'fbFormController'
     link: (scope, element, attrs) ->
@@ -323,7 +330,7 @@ angular.module 'builder.directive', [
         $builder = $injector.get '$builder'
 
         # get the form for controller
-        $builder.forms[scope.formName] ?= []
+        $builder.forms[scope.formName] ? $builder.addForm(scope.formName)
         scope.form = $builder.forms[scope.formName]
 ]
 
