@@ -387,7 +387,7 @@ angular.module 'builder.directive', [
             return if not template
             $template = $(template)
             # add validator
-            $input = $template.find "[ng-model='inputText']"
+            $input = $template.find "[validator-group]"
             $input.attr
                 validator: '{{validation}}'
             # compile
