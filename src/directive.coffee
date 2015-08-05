@@ -92,12 +92,7 @@ angular.module 'builder.directive', [
                     $(element).find('.empty').remove()
                     return
 
-                if not isHover and draggable.mode is 'drag'
-                    # remove the form object by draggin out
-                    formObject = draggable.object.formObject
-                    if formObject.editable
-                        $builder.removeFormObject attrs.fbBuilder, formObject.index
-                else if isHover
+                if isHover
                     if draggable.mode is 'mirror'
                         # insert a form object
                         $builder.insertFormObject scope.formName, $(element).find('.empty').index('.fb-form-object-editable'),
