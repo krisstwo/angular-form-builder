@@ -249,6 +249,19 @@ angular.module 'builder.provider', []
 
         @forms[form].push newFieldset
 
+    @createForm = (formName, formArray) =>
+        @addForm formName
+
+        for fieldset in formArray
+            # default is there by default
+            if fieldset.name == 'default'
+                for formObject in fieldset.objects
+                    @addFormObject formName, null, formObject
+            else
+                @addFieldsetToForm fieldset, formName
+                for formObject in fieldset.objects
+                    @addFormObject formName, fieldset.name, formObject
+
     @addForm('default')
 
     # ----------------------------------------
@@ -265,6 +278,7 @@ angular.module 'builder.provider', []
         forms: @forms
         broadcastChannel: @broadcastChannel
         registerComponent: @registerComponent
+        createForm: @createForm
         addForm: @addForm
         addFieldsetToForm: @addFieldsetToForm
         addFormObject: @addFormObject
