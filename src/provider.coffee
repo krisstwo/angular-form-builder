@@ -67,7 +67,7 @@ angular.module 'builder.provider', []
 
     @getFieldsetIndexInForm = (fieldset, form) ->
         if not @forms[form]
-            console.error "The form is inexesitant."
+            return console.error "The form #{form} is inexesitant."
 
         for index in [0...@forms[form].length] by 1
             if @forms[form][index]['name'] == fieldset
