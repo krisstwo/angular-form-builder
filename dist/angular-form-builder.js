@@ -1382,13 +1382,13 @@
     })(this);
     this.addFieldsetToForm = (function(_this) {
       return function(fieldset, form) {
-        var newFieldset, _base, _ref;
+        var newFieldset, _base, _ref, _ref1;
         if ((_base = _this.forms)[form] == null) {
           _base[form] = _this.createEmptyForm();
         }
         newFieldset = {
-          name: fieldset.name,
-          label: (_ref = fieldset.label) != null ? _ref : '',
+          name: (_ref = fieldset.name) != null ? _ref : fieldset.label,
+          label: (_ref1 = fieldset.label) != null ? _ref1 : '',
           objects: []
         };
         return _this.forms[form].push(newFieldset);

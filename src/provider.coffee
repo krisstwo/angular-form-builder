@@ -272,7 +272,7 @@ angular.module 'builder.provider', []
         @forms[form] ?= @createEmptyForm()
 
         newFieldset =
-            name: fieldset.name
+            name: fieldset.name ? fieldset.label
             label: fieldset.label ? ''
             objects: []
 
