@@ -24,10 +24,7 @@ angular.module 'builder.directive', [
     template:
         """
         <div class='form-horizontal'>
-            <div class='fb-form-fieldset' data-fieldset-name="{{fieldset.name}}" ng-repeat="fieldset in fieldsets">
-                <legend data-ng-if="fieldset.name != 'default'">{{fieldset.label}}</legend>
-                <div class='fb-form-object-editable' ng-repeat="object in fieldset.objects"
-                    fb-form-object-editable="object"></div>
+            <div ng-repeat="fieldset in fieldsets" fb-fieldset-editable="fieldset">
             </div>
         </div>
         """
@@ -105,6 +102,43 @@ angular.module 'builder.directive', [
                         newIndex-- if newFieldset == draggable.object.formObject.fieldsetName and oldIndex < newIndex
                         $builder.updateFormObjectIndex scope.formName, draggable.object.formObject.fieldsetName, newFieldset, oldIndex, newIndex
                 $(element).find('.empty').remove()
+]
+
+# ----------------------------------------
+# fb-fieldset-editable
+# ----------------------------------------
+.directive 'fbFieldsetEditable', ['$injector', ($injector) ->
+    # providers
+    $builder = $injector.get '$builder'
+
+    restrict: 'A'
+    scope:
+        fieldset: '=fbFieldsetEditable'
+    template:
+        """
+        <legend data-ng-if="fieldset.name != 'default'">
+            {{fieldset.label}}
+            <span class="pull-right">
+                <span class="glyphicon glyphicon-chevron-up control" data-ng-click="moveFieldsetUp()"></span>
+                <span class="glyphicon glyphicon-chevron-down control" data-ng-click="moveFieldsetDown()"></span>
+                <span class="glyphicon glyphicon-remove control" data-ng-click="removeFieldset()"></span>
+            </span>
+        </legend>
+        <div class='fb-form-object-editable' ng-repeat="object in fieldset.objects"
+            fb-form-object-editable="object"></div>
+        """
+    link: (scope, element, attrs) ->
+        $(element).addClass 'fb-fieldset-editable'
+        $(element).data 'fieldset-name', scope.fieldset.name
+
+        scope.moveFieldsetUp = ->
+            $builder.moveFieldsetUp scope.$parent.formName, scope.fieldset.name
+
+        scope.moveFieldsetDown = ->
+            $builder.moveFieldsetDown scope.$parent.formName, scope.fieldset.name
+
+        scope.removeFieldset = ->
+            $builder.removeFieldset scope.$parent.formName, scope.fieldset.name
 ]
 
 # ----------------------------------------

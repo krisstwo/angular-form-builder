@@ -119,6 +119,20 @@ angular.module 'builder.provider', []
             .success (template) ->
                 component.popoverTemplate = template
 
+    @updateFieldsetIndex = (formName, fieldsetName, newIndex) =>
+        oldIndex = @getFieldsetIndexInForm fieldsetName, formName
+
+        # boundary checks, index 0 reserved to default fieldset
+        if newIndex > @forms[formName].length - 1
+            newIndex = @forms[formName].length - 1
+        else if newIndex <= 0
+            newIndex = 1
+
+        return if newIndex == oldIndex
+
+        fieldsetObject = @forms[formName].splice oldIndex, 1
+        @forms[formName].splice newIndex, 0, fieldsetObject[0]
+
     # ----------------------------------------
     # public functions
     # ----------------------------------------
@@ -239,6 +253,21 @@ angular.module 'builder.provider', []
 
         @reindexFormObject name
 
+    @moveFieldsetUp = (formName, fieldsetName) =>
+        oldIndex = @getFieldsetIndexInForm fieldsetName, formName
+        newIndex = oldIndex - 1
+        @updateFieldsetIndex formName, fieldsetName, newIndex
+
+    @moveFieldsetDown = (formName, fieldsetName) =>
+        oldIndex = @getFieldsetIndexInForm fieldsetName, formName
+        newIndex = oldIndex + 1
+        @updateFieldsetIndex formName, fieldsetName, newIndex
+
+    @removeFieldset = (formName, fieldsetName) =>
+        index = @getFieldsetIndexInForm fieldsetName, formName
+        $('div.fb-form-object-editable').popover 'hide';
+        @forms[formName].splice index, 1
+
     @addFieldsetToForm = (fieldset, form) =>
         @forms[form] ?= @createEmptyForm()
 
@@ -285,5 +314,8 @@ angular.module 'builder.provider', []
         insertFormObject: @insertFormObject
         removeFormObject: @removeFormObject
         updateFormObjectIndex: @updateFormObjectIndex
+        moveFieldsetUp: @moveFieldsetUp
+        moveFieldsetDown: @moveFieldsetDown
+        removeFieldset: @removeFieldset
     ]
     return

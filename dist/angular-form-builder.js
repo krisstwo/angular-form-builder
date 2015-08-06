@@ -204,7 +204,7 @@
         scope: {
           fbBuilder: '='
         },
-        template: "<div class='form-horizontal'>\n    <div class='fb-form-fieldset' data-fieldset-name=\"{{fieldset.name}}\" ng-repeat=\"fieldset in fieldsets\">\n        <legend data-ng-if=\"fieldset.name != 'default'\">{{fieldset.label}}</legend>\n        <div class='fb-form-object-editable' ng-repeat=\"object in fieldset.objects\"\n            fb-form-object-editable=\"object\"></div>\n    </div>\n</div>",
+        template: "<div class='form-horizontal'>\n    <div ng-repeat=\"fieldset in fieldsets\" fb-fieldset-editable=\"fieldset\">\n    </div>\n</div>",
         link: function(scope, element, attrs) {
           var beginMove;
           scope.formName = attrs.fbBuilder;
@@ -280,6 +280,31 @@
               return $(element).find('.empty').remove();
             }
           });
+        }
+      };
+    }
+  ]).directive('fbFieldsetEditable', [
+    '$injector', function($injector) {
+      var $builder;
+      $builder = $injector.get('$builder');
+      return {
+        restrict: 'A',
+        scope: {
+          fieldset: '=fbFieldsetEditable'
+        },
+        template: "<legend data-ng-if=\"fieldset.name != 'default'\">\n    {{fieldset.label}}\n    <span class=\"pull-right\">\n        <span class=\"glyphicon glyphicon-chevron-up control\" data-ng-click=\"moveFieldsetUp()\"></span>\n        <span class=\"glyphicon glyphicon-chevron-down control\" data-ng-click=\"moveFieldsetDown()\"></span>\n        <span class=\"glyphicon glyphicon-remove control\" data-ng-click=\"removeFieldset()\"></span>\n    </span>\n</legend>\n<div class='fb-form-object-editable' ng-repeat=\"object in fieldset.objects\"\n    fb-form-object-editable=\"object\"></div>",
+        link: function(scope, element, attrs) {
+          $(element).addClass('fb-fieldset-editable');
+          $(element).data('fieldset-name', scope.fieldset.name);
+          scope.moveFieldsetUp = function() {
+            return $builder.moveFieldsetUp(scope.$parent.formName, scope.fieldset.name);
+          };
+          scope.moveFieldsetDown = function() {
+            return $builder.moveFieldsetDown(scope.$parent.formName, scope.fieldset.name);
+          };
+          return scope.removeFieldset = function() {
+            return $builder.removeFieldset(scope.$parent.formName, scope.fieldset.name);
+          };
         }
       };
     }
@@ -560,7 +585,7 @@
               return;
             }
             $template = $(template);
-            $input = $template.find("[ng-model='inputText']");
+            $input = $template.find("[validator-group]");
             $input.attr({
               validator: '{{validation}}'
             });
@@ -1093,7 +1118,7 @@
     this.getFieldsetIndexInForm = function(fieldset, form) {
       var index, _i, _ref;
       if (!this.forms[form]) {
-        console.error("The form is inexesitant.");
+        return console.error("The form " + form + " is inexesitant.");
       }
       for (index = _i = 0, _ref = this.forms[form].length; _i < _ref; index = _i += 1) {
         if (this.forms[form][index]['name'] === fieldset) {
@@ -1164,6 +1189,22 @@
         });
       }
     };
+    this.updateFieldsetIndex = (function(_this) {
+      return function(formName, fieldsetName, newIndex) {
+        var fieldsetObject, oldIndex;
+        oldIndex = _this.getFieldsetIndexInForm(fieldsetName, formName);
+        if (newIndex > _this.forms[formName].length - 1) {
+          newIndex = _this.forms[formName].length - 1;
+        } else if (newIndex <= 0) {
+          newIndex = 1;
+        }
+        if (newIndex === oldIndex) {
+          return;
+        }
+        fieldsetObject = _this.forms[formName].splice(oldIndex, 1);
+        return _this.forms[formName].splice(newIndex, 0, fieldsetObject[0]);
+      };
+    })(this);
     this.registerComponent = (function(_this) {
       return function(name, component) {
         var newComponent, _ref;
@@ -1315,6 +1356,30 @@
         return _this.reindexFormObject(name);
       };
     })(this);
+    this.moveFieldsetUp = (function(_this) {
+      return function(formName, fieldsetName) {
+        var newIndex, oldIndex;
+        oldIndex = _this.getFieldsetIndexInForm(fieldsetName, formName);
+        newIndex = oldIndex - 1;
+        return _this.updateFieldsetIndex(formName, fieldsetName, newIndex);
+      };
+    })(this);
+    this.moveFieldsetDown = (function(_this) {
+      return function(formName, fieldsetName) {
+        var newIndex, oldIndex;
+        oldIndex = _this.getFieldsetIndexInForm(fieldsetName, formName);
+        newIndex = oldIndex + 1;
+        return _this.updateFieldsetIndex(formName, fieldsetName, newIndex);
+      };
+    })(this);
+    this.removeFieldset = (function(_this) {
+      return function(formName, fieldsetName) {
+        var index;
+        index = _this.getFieldsetIndexInForm(fieldsetName, formName);
+        $('div.fb-form-object-editable').popover('hide');
+        return _this.forms[formName].splice(index, 1);
+      };
+    })(this);
     this.addFieldsetToForm = (function(_this) {
       return function(fieldset, form) {
         var newFieldset, _base, _ref;
@@ -1327,6 +1392,41 @@
           objects: []
         };
         return _this.forms[form].push(newFieldset);
+      };
+    })(this);
+    this.createForm = (function(_this) {
+      return function(formName, formArray) {
+        var fieldset, formObject, _i, _len, _results;
+        _this.addForm(formName);
+        _results = [];
+        for (_i = 0, _len = formArray.length; _i < _len; _i++) {
+          fieldset = formArray[_i];
+          if (fieldset.name === 'default') {
+            _results.push((function() {
+              var _j, _len1, _ref, _results1;
+              _ref = fieldset.objects;
+              _results1 = [];
+              for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+                formObject = _ref[_j];
+                _results1.push(this.addFormObject(formName, null, formObject));
+              }
+              return _results1;
+            }).call(_this));
+          } else {
+            _this.addFieldsetToForm(fieldset, formName);
+            _results.push((function() {
+              var _j, _len1, _ref, _results1;
+              _ref = fieldset.objects;
+              _results1 = [];
+              for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+                formObject = _ref[_j];
+                _results1.push(this.addFormObject(formName, fieldset.name, formObject));
+              }
+              return _results1;
+            }).call(_this));
+          }
+        }
+        return _results;
       };
     })(this);
     this.addForm('default');
@@ -1347,12 +1447,16 @@
             forms: _this.forms,
             broadcastChannel: _this.broadcastChannel,
             registerComponent: _this.registerComponent,
+            createForm: _this.createForm,
             addForm: _this.addForm,
             addFieldsetToForm: _this.addFieldsetToForm,
             addFormObject: _this.addFormObject,
             insertFormObject: _this.insertFormObject,
             removeFormObject: _this.removeFormObject,
-            updateFormObjectIndex: _this.updateFormObjectIndex
+            updateFormObjectIndex: _this.updateFormObjectIndex,
+            moveFieldsetUp: _this.moveFieldsetUp,
+            moveFieldsetDown: _this.moveFieldsetDown,
+            removeFieldset: _this.removeFieldset
           };
         };
       })(this)

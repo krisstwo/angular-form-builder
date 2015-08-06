@@ -10,6 +10,16 @@
     select { cursor: move; }
     textarea { cursor: move; }
 }
+.fb-fieldset-editable {
+    padding: 10px;
+}
+.fb-fieldset-editable legend {
+    font-weight: bold;
+    font-style: italic;
+}
+.fb-fieldset-editable .control {
+    cursor: pointer;
+}
 .fb-form-object-editable {
     padding: 10px;
 }
