@@ -198,7 +198,7 @@ angular.module 'builder.provider', []
             console.error "Fieldset '#{fieldset}' not found in form '#{name}'."
             return
 
-        if index > @forms[name][fieldsetIndex].length then index = @forms[name][fieldsetIndex].length
+        if index > @forms[name][fieldsetIndex].objects.length or index == 'last' then index = @forms[name][fieldsetIndex].objects.length
         else if index < 0 then index = 0
         @forms[name][fieldsetIndex].objects.splice index, 0, @convertFormObject(@forms[name][fieldsetIndex].name, formObject)
         @reindexFormObject name
